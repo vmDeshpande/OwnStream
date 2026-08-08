@@ -56,8 +56,18 @@ class LocalCryptoProvider @Inject constructor() : CryptoProvider {
         )
     }
 
-    override suspend fun decryptPayload(encryptedPayload: EncryptedPayload): String {
+    override suspend fun decryptPayload(encryptedPayload: EncryptedPayload, senderId: String): String {
         return String(encryptedPayload.data)
+    }
+
+    override suspend fun hasSession(recipientId: String): Boolean = true
+
+    override suspend fun establishSession(recipientId: String, bundle: ProtocolPreKeyBundle) {
+        // No-op for MVP
+    }
+
+    override suspend fun getLocalPreKeyBundle(): ProtocolPreKeyBundle {
+        throw UnsupportedOperationException("LocalCryptoProvider does not support PreKey bundles")
     }
 
     override suspend fun getIdentityFingerprint(identityId: String): String {

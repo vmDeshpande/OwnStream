@@ -10,9 +10,15 @@ import androidx.room.TypeConverters
         StorageConfigurationEntity::class,
         ConversationEntity::class,
         ParticipantEntity::class,
-        MessageEntity::class
+        MessageEntity::class,
+        SignalIdentityEntity::class,
+        SignalSessionEntity::class,
+        SignalPreKeyEntity::class,
+        SignalSignedPreKeyEntity::class,
+        SignalKyberPreKeyEntity::class,
+        SignalTrustedIdentityEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -20,4 +26,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun identityDao(): IdentityDao
     abstract fun conversationDao(): ConversationDao
     abstract fun messageDao(): MessageDao
+    abstract fun signalDao(): SignalDao
 }

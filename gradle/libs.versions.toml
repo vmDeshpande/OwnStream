@@ -17,6 +17,8 @@ activityCompose = "1.9.3"
 lifecycle = "2.8.7"
 room = "2.8.4"
 serialization = "1.11.0"
+libsignal = "0.99.3"
+desugar-jdk-libs = "2.1.5"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -46,6 +48,9 @@ androidx-room-compiler = { group = "androidx.room", name = "room-compiler", vers
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 hilt-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", version.ref = "hilt" }
+libsignal-client = { group = "org.signal", name = "libsignal-client", version.ref = "libsignal" }
+libsignal-android = { group = "org.signal", name = "libsignal-android", version.ref = "libsignal" }
+desugar-jdk-libs = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugar-jdk-libs" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

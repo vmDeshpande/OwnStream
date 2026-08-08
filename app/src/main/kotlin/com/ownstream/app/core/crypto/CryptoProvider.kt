@@ -23,7 +23,23 @@ interface CryptoProvider {
     /**
      * Decrypts an encrypted payload.
      */
-    suspend fun decryptPayload(encryptedPayload: EncryptedPayload): String
+    suspend fun decryptPayload(encryptedPayload: EncryptedPayload, senderId: String): String
+
+    /**
+     * Checks if a secure session exists for the recipient.
+     */
+    suspend fun hasSession(recipientId: String): Boolean
+
+    /**
+     * Processes a PreKey Bundle to establish a session with a recipient.
+     * The bundle should be provided in a serializable format.
+     */
+    suspend fun establishSession(recipientId: String, bundle: ProtocolPreKeyBundle)
+
+    /**
+     * Generates a PreKey Bundle for the local identity to be shared with others.
+     */
+    suspend fun getLocalPreKeyBundle(): ProtocolPreKeyBundle
 
     /**
      * Verifies the cryptographic fingerprint of a remote identity.
@@ -37,4 +53,19 @@ data class EncryptedPayload(
     val algorithm: String,
     val isEncrypted: Boolean,
     val metadata: Map<String, String> = emptyMap()
+)
+
+@Serializable
+data class ProtocolPreKeyBundle(
+    val registrationId: Int,
+    val deviceId: Int,
+    val preKeyId: Int,
+    val preKeyPublic: ByteArray?,
+    val signedPreKeyId: Int,
+    val signedPreKeyPublic: ByteArray,
+    val signedPreKeySignature: ByteArray,
+    val identityKey: ByteArray,
+    val kyberPreKeyId: Int,
+    val kyberPreKeyPublic: ByteArray,
+    val kyberPreKeySignature: ByteArray
 )

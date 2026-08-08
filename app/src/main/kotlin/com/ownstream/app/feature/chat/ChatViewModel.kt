@@ -30,7 +30,7 @@ class ChatViewModel @Inject constructor(
             list.map { message ->
                 val decryptedContent = when (val p = message.payload) {
                     is MessagePayload.Text -> p.content
-                    is MessagePayload.Encrypted -> cryptoProvider.decryptPayload(p.encryptedPayload)
+                    is MessagePayload.Encrypted -> cryptoProvider.decryptPayload(p.encryptedPayload, message.senderId)
                 }
                 UiMessage(message, decryptedContent)
             }

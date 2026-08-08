@@ -30,13 +30,23 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+        isCoreLibraryDesugaringEnabled = true
     }
     buildFeatures {
         compose = true
     }
+    packaging {
+        resources {
+            excludes += setOf("libsignal_jni*.dylib", "signal_jni*.dll")
+        }
+        jniLibs {
+            excludes += setOf("**/libsignal_jni_testing.so")
+        }
+    }
 }
 
 dependencies {
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
@@ -65,6 +75,9 @@ dependencies {
     ksp(libs.androidx.room.compiler)
     
     implementation(libs.kotlinx.serialization.json)
+    
+    implementation(libs.libsignal.client)
+    implementation(libs.libsignal.android)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

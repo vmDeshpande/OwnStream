@@ -1,7 +1,7 @@
 package com.ownstream.app.core.di
 
 import com.ownstream.app.core.crypto.CryptoProvider
-import com.ownstream.app.core.crypto.LocalCryptoProvider
+import com.ownstream.app.core.crypto.SignalCryptoProvider
 import com.ownstream.app.core.network.MessageTransport
 import com.ownstream.app.core.network.NoOpMessageTransport
 import com.ownstream.app.core.storage.StorageAdapter
@@ -22,7 +22,7 @@ abstract class CoreModule {
 
     @Binds
     @Singleton
-    abstract fun bindCryptoProvider(impl: LocalCryptoProvider): CryptoProvider
+    abstract fun bindCryptoProvider(impl: SignalCryptoProvider): CryptoProvider
 
     @Binds
     @Singleton
