@@ -88,8 +88,11 @@ class SignalProtocolStoreAdapter @Inject constructor(
     }
 
     suspend fun saveLocalIdentity(registrationId: Int, keyPair: IdentityKeyPair) {
+        println("[6E-Adapter] Encrypting keypair...")
         val encrypted = encryptionManager.encrypt(keyPair.serialize())
+        println("[6E-Adapter] Inserting into DAO...")
         signalDao.insertLocalIdentity(SignalIdentityEntity(1, registrationId, encrypted))
+        println("[6E-Adapter] DAO insert complete.")
     }
 
     // SessionStore

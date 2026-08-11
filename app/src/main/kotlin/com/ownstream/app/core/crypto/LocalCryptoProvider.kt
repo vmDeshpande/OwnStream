@@ -4,6 +4,8 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import com.ownstream.app.domain.model.Identity
+import com.ownstream.protocol.EncryptedPayload
+import com.ownstream.protocol.ProtocolPreKeyBundle
 import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.util.UUID

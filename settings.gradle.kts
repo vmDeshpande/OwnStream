@@ -27,4 +27,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "OwnStream"
 include(":app")
+include(":protocol")
+include(":relay")
  

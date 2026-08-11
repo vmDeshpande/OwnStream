@@ -15,10 +15,11 @@ import javax.inject.Singleton
  * Uses a dedicated key in Android Keystore.
  */
 @Singleton
-class EncryptionManager @Inject constructor() {
+class EncryptionManager @Inject constructor(
+    @StorageKeyAlias private val keyAlias: String,
+    private val keyStoreProvider: KeyStoreProvider
+) {
 
-    private val KEY_ALIAS = "signal_state_storage_key"
-    private val ANDROID_KEYSTORE = "AndroidKeyStore"
     private val TRANSFORMATION = "${KeyProperties.KEY_ALGORITHM_AES}/${KeyProperties.BLOCK_MODE_GCM}/${KeyProperties.ENCRYPTION_PADDING_NONE}"
     private val GCM_IV_LENGTH = 12
     private val GCM_TAG_LENGTH = 128
@@ -28,36 +29,46 @@ class EncryptionManager @Inject constructor() {
     }
 
     private fun createKeyIfNeeded() {
-        val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE)
-        keyStore.load(null)
-        if (!keyStore.containsAlias(KEY_ALIAS)) {
-            val keyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
-            val parameterSpec = KeyGenParameterSpec.Builder(
-                KEY_ALIAS,
-                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
-            ).apply {
-                setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                setKeySize(256)
-            }.build()
-            keyGenerator.init(parameterSpec)
-            keyGenerator.generateKey()
+        println("[6E-Enc] createKeyIfNeeded entry")
+        val keyStore = keyStoreProvider.getKeyStore()
+        println("[6E-Enc] KeyStore type: ${keyStore.type}")
+        if (!keyStore.containsAlias(keyAlias)) {
+            println("[6E-Enc] Creating key $keyAlias...")
+            if (keyStore.type == "AndroidKeyStore") {
+                val keyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+                val parameterSpec = KeyGenParameterSpec.Builder(
+                    keyAlias,
+                    KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+                ).apply {
+                    setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                    setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                    setKeySize(256)
+                }.build()
+                keyGenerator.init(parameterSpec)
+                keyGenerator.generateKey()
+            } else {
+                // Mock/Standard KeyStore for Unit Tests
+                val keyGenerator = KeyGenerator.getInstance("AES")
+                keyGenerator.init(256)
+                val secretKey = keyGenerator.generateKey()
+                keyStore.setKeyEntry(keyAlias, secretKey, null, null)
+            }
+            println("[6E-Enc] Key created.")
         }
     }
 
     private fun getSecretKey(): SecretKey {
-        val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE)
-        keyStore.load(null)
-        return keyStore.getKey(KEY_ALIAS, null) as SecretKey
+        println("[6E-Enc] getSecretKey for $keyAlias")
+        return keyStoreProvider.getKeyStore().getKey(keyAlias, null) as SecretKey
     }
 
     fun encrypt(plaintext: ByteArray): ByteArray {
+        println("[6E-Enc] encrypting...")
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, getSecretKey())
         val iv = cipher.iv
         val ciphertext = cipher.doFinal(plaintext)
-        
-        // Return IV + Ciphertext
+        println("[6E-Enc] encryption complete.")
         return iv + ciphertext
     }
 

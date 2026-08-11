@@ -4,6 +4,8 @@ import android.util.Base64
 import android.util.Log
 import com.ownstream.app.domain.model.Identity
 import com.ownstream.app.domain.repository.IdentityRepository
+import com.ownstream.protocol.EncryptedPayload
+import com.ownstream.protocol.ProtocolPreKeyBundle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.signal.libsignal.protocol.*
@@ -28,10 +30,13 @@ class SignalCryptoProvider @Inject constructor(
     private val TAG = "SignalCryptoProvider"
 
     override suspend fun generateIdentity(username: String): Identity = withContext(Dispatchers.Default) {
+        Log.d(TAG, "[6E] Generating identity for $username")
         val identityKeyPair = IdentityKeyPair.generate()
         val registrationId = KeyHelper.generateRegistrationId(false)
         
+        Log.d(TAG, "[6E] Saving local identity...")
         store.saveLocalIdentity(registrationId, identityKeyPair)
+        Log.d(TAG, "[6E] Identity saved.")
 
         // Map to OwnStream domain model
         val id = "os_" + UUID.randomUUID().toString().take(8)

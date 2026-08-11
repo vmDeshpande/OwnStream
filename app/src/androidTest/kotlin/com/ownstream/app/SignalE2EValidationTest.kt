@@ -3,7 +3,7 @@ package com.ownstream.app
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.ownstream.app.core.crypto.EncryptedPayload
+import com.ownstream.protocol.EncryptedPayload
 import com.ownstream.app.core.crypto.EncryptionManager
 import com.ownstream.app.core.crypto.SignalCryptoProvider
 import com.ownstream.app.core.crypto.SignalProtocolStoreAdapter
@@ -18,7 +18,7 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class SignalE2EValidationTest {
 
-    private val encryptionManager = EncryptionManager()
+    private val encryptionManager = EncryptionManager("test_storage_key")
     private lateinit var aliceDb: AppDatabase
     private lateinit var bobDb: AppDatabase
     private lateinit var aliceCrypto: SignalCryptoProvider

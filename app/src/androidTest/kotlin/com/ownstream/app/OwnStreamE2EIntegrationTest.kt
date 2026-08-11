@@ -7,6 +7,8 @@ import com.ownstream.app.core.crypto.EncryptionManager
 import com.ownstream.app.core.crypto.SignalCryptoProvider
 import com.ownstream.app.core.crypto.SignalProtocolStoreAdapter
 import com.ownstream.app.core.network.MessageTransport
+import com.ownstream.protocol.MessageEnvelope
+import com.ownstream.protocol.ProtocolPreKeyBundle
 import com.ownstream.app.data.local.AppDatabase
 import com.ownstream.app.data.local.storage.LocalStorageAdapter
 import com.ownstream.app.data.repository.RealChatRepository
@@ -22,7 +24,7 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class OwnStreamE2EIntegrationTest {
 
-    private val encryptionManager = EncryptionManager()
+    private val encryptionManager = EncryptionManager("test_storage_key")
 
     @Test
     fun testAliceToBobE2EEFlow() = runBlocking {
@@ -80,11 +82,21 @@ class OwnStreamE2EIntegrationTest {
         // 4. Alice sends message
         // We need a transport that delivers to Bob's repository
         val mockTransport = object : MessageTransport {
-            override suspend fun send(message: Message) {
-                // Deliver to Bob
+            override suspend fun send(envelope: MessageEnvelope) {
+                // Map envelope back to Message for storage on Bob's side
+                val message = Message(
+                    id = envelope.messageId,
+                    conversationId = envelope.conversationId,
+                    senderId = envelope.senderId,
+                    payload = MessagePayload.Encrypted(envelope.encryptedPayload),
+                    timestamp = envelope.timestamp,
+                    status = MessageStatus.DELIVERED
+                )
                 bobChatRepo.sendMessage(message)
             }
-            override fun observeIncomingMessages() = kotlinx.coroutines.flow.emptyFlow<Message>()
+            override fun observeIncomingMessages() = kotlinx.coroutines.flow.emptyFlow<MessageEnvelope>()
+            override suspend fun publishPreKeyBundle(identityId: String, bundle: ProtocolPreKeyBundle) {}
+            override suspend fun fetchPreKeyBundle(identityId: String): ProtocolPreKeyBundle? = null
             override suspend fun connect() {}
             override suspend fun disconnect() {}
         }

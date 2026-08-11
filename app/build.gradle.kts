@@ -37,7 +37,7 @@ android {
     }
     packaging {
         resources {
-            excludes += setOf("libsignal_jni*.dylib", "signal_jni*.dll")
+            excludes += setOf("libsignal_jni*.dylib", "signal_jni*.dll", "META-INF/INDEX.LIST")
         }
         jniLibs {
             excludes += setOf("**/libsignal_jni_testing.so")
@@ -47,6 +47,7 @@ android {
 
 dependencies {
     coreLibraryDesugaring(libs.desugar.jdk.libs)
+    implementation(project(":protocol"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
@@ -76,12 +77,46 @@ dependencies {
     
     implementation(libs.kotlinx.serialization.json)
     
+    implementation(libs.ktorClientCore)
+    implementation(libs.ktorClientOkhttp)
+    implementation(libs.ktorClientContentNegotiation)
+    implementation(libs.ktorClientWebsockets)
+    implementation(libs.ktor.serialization.json)
+    implementation(libs.androidx.security.crypto)
+    
     implementation(libs.libsignal.client)
     implementation(libs.libsignal.android)
 
     testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.robolectric.shadows)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.androidx.test.ext.junit)
+    testImplementation(project(":relay"))
+    testImplementation(libs.bcprov)
+    testImplementation(libs.ktor.server.core)
+    testImplementation(libs.ktorServerCio)
+    testImplementation(libs.ktor.server.content.negotiation)
+    testImplementation(libs.ktor.server.websockets)
+    testImplementation(libs.ktor.serialization.json)
+    testImplementation(libs.androidx.room.ktx)
+    testImplementation(libs.androidx.room.runtime)
+    testImplementation(libs.androidx.appcompat)
+
+    androidTestImplementation(project(":relay")) {
+        exclude(group = "org.postgresql", module = "postgresql")
+        exclude(group = "com.zaxxer", module = "HikariCP")
+        exclude(group = "io.ktor", module = "ktor-server-netty-jvm")
+    }
+    androidTestImplementation(libs.ktor.server.core)
+    androidTestImplementation(libs.ktorServerCio)
+    androidTestImplementation(libs.ktor.server.content.negotiation)
+    androidTestImplementation(libs.ktor.server.websockets)
+    androidTestImplementation(libs.ktor.serialization.json)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(libs.ktorClientMock)
+    androidTestImplementation(libs.ktor.serialization.json)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.testManifest)
 }

@@ -1,6 +1,6 @@
 package com.ownstream.app.domain.model
 
-import com.ownstream.app.core.crypto.EncryptedPayload
+import com.ownstream.protocol.EncryptedPayload
 import kotlinx.serialization.Serializable
 
 @Serializable

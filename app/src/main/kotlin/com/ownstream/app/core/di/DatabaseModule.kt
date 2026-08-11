@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.ownstream.app.core.crypto.*
 import com.ownstream.app.data.local.*
 import dagger.Module
 import dagger.Provides
@@ -51,4 +52,16 @@ object DatabaseModule {
 
     @Provides
     fun provideSignalDao(database: AppDatabase): SignalDao = database.signalDao()
+
+    @Provides
+    @Singleton
+    fun provideKeyStoreProvider(impl: AndroidKeyStoreProvider): KeyStoreProvider = impl
+
+    @Provides
+    @StorageKeyAlias
+    fun provideStorageKeyAlias(): String = "signal_state_storage_key"
+
+    @Provides
+    @IdentityKeyAlias
+    fun provideIdentityKeyAlias(): String = "ownstream_identity_key"
 }

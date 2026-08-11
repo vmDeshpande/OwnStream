@@ -1,6 +1,6 @@
 package com.ownstream.app.data.local.storage
 
-import com.ownstream.app.core.crypto.EncryptedPayload
+import com.ownstream.protocol.EncryptedPayload
 import com.ownstream.app.core.storage.StorageAdapter
 import com.ownstream.app.data.local.*
 import com.ownstream.app.domain.model.*

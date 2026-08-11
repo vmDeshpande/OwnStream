@@ -31,7 +31,7 @@ class SignalPersistenceTest {
     fun setup() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         database = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).build()
-        encryptionManager = EncryptionManager() // Uses real Android Keystore
+        encryptionManager = EncryptionManager("test_storage_key") // Uses real Android Keystore
         adapter = SignalProtocolStoreAdapter(database.signalDao(), encryptionManager)
     }
 

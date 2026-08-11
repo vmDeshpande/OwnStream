@@ -1,7 +1,8 @@
 package com.ownstream.app.core.crypto
 
 import com.ownstream.app.domain.model.Identity
-import kotlinx.serialization.Serializable
+import com.ownstream.protocol.EncryptedPayload
+import com.ownstream.protocol.ProtocolPreKeyBundle
 
 /**
  * Core abstraction for all cryptographic operations.
@@ -46,26 +47,3 @@ interface CryptoProvider {
      */
     suspend fun getIdentityFingerprint(identityId: String): String
 }
-
-@Serializable
-data class EncryptedPayload(
-    val data: ByteArray,
-    val algorithm: String,
-    val isEncrypted: Boolean,
-    val metadata: Map<String, String> = emptyMap()
-)
-
-@Serializable
-data class ProtocolPreKeyBundle(
-    val registrationId: Int,
-    val deviceId: Int,
-    val preKeyId: Int,
-    val preKeyPublic: ByteArray?,
-    val signedPreKeyId: Int,
-    val signedPreKeyPublic: ByteArray,
-    val signedPreKeySignature: ByteArray,
-    val identityKey: ByteArray,
-    val kyberPreKeyId: Int,
-    val kyberPreKeyPublic: ByteArray,
-    val kyberPreKeySignature: ByteArray
-)

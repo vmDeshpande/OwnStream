@@ -50,7 +50,7 @@ class PersistenceTest {
 
     @Test
     fun `test encrypted payload structure`() {
-        val encryptedPayload = com.ownstream.app.core.crypto.EncryptedPayload(
+        val encryptedPayload = com.ownstream.protocol.EncryptedPayload(
             data = "Secret".toByteArray(),
             algorithm = "NONE",
             isEncrypted = false

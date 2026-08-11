@@ -3,6 +3,8 @@ package com.ownstream.app.feature.chat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ownstream.app.core.crypto.CryptoProvider
+import com.ownstream.app.core.network.MessageTransport
+import com.ownstream.app.core.network.NetworkMessageTransport
 import com.ownstream.app.domain.model.Message
 import com.ownstream.app.domain.model.MessagePayload
 import com.ownstream.app.domain.repository.ChatRepository
@@ -22,20 +24,33 @@ class ChatViewModel @Inject constructor(
     private val sendMessageUseCase: SendMessageUseCase,
     private val chatRepository: ChatRepository,
     private val identityRepository: IdentityRepository,
-    private val cryptoProvider: CryptoProvider
+    private val cryptoProvider: CryptoProvider,
+    private val transport: MessageTransport
 ) : ViewModel() {
 
-    fun messages(conversationId: String) = getMessagesUseCase(conversationId)
-        .map { list ->
-            list.map { message ->
-                val decryptedContent = when (val p = message.payload) {
-                    is MessagePayload.Text -> p.content
-                    is MessagePayload.Encrypted -> cryptoProvider.decryptPayload(p.encryptedPayload, message.senderId)
+    fun messages(conversationId: String): kotlinx.coroutines.flow.StateFlow<List<UiMessage>> {
+        // Trigger connection when observing messages
+        val transport = transport
+        if (transport is NetworkMessageTransport) {
+            localIdentity.value?.id?.let { id ->
+                viewModelScope.launch {
+                    transport.connect(id)
                 }
-                UiMessage(message, decryptedContent)
             }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+        return getMessagesUseCase(conversationId)
+            .map { list ->
+                list.map { message ->
+                    val decryptedContent = when (val p = message.payload) {
+                        is MessagePayload.Text -> p.content
+                        is MessagePayload.Encrypted -> cryptoProvider.decryptPayload(p.encryptedPayload, message.senderId)
+                    }
+                    UiMessage(message, decryptedContent)
+                }
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }
 
     suspend fun getConversation(conversationId: String) = chatRepository.getConversation(conversationId)
 

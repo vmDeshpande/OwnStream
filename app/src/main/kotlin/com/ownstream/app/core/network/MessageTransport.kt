@@ -1,6 +1,7 @@
 package com.ownstream.app.core.network
 
-import com.ownstream.app.domain.model.Message
+import com.ownstream.protocol.MessageEnvelope
+import com.ownstream.protocol.ProtocolPreKeyBundle
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -10,13 +11,24 @@ import kotlinx.coroutines.flow.Flow
 interface MessageTransport {
     /**
      * Sends an encrypted message packet.
+     * In 1:1 E2EE, this envelope contains the routing information for the relay.
      */
-    suspend fun send(message: Message)
+    suspend fun send(envelope: MessageEnvelope)
 
     /**
      * Observes incoming message packets.
      */
-    fun observeIncomingMessages(): Flow<Message>
+    fun observeIncomingMessages(): Flow<MessageEnvelope>
+
+    /**
+     * Publishes the local PreKey bundle to the relay for discovery.
+     */
+    suspend fun publishPreKeyBundle(identityId: String, bundle: ProtocolPreKeyBundle)
+
+    /**
+     * Fetches a remote identity's PreKey bundle from the relay.
+     */
+    suspend fun fetchPreKeyBundle(identityId: String): ProtocolPreKeyBundle?
 
     /**
      * Connects to the transport layer (e.g., WebSocket, Relay, Mesh).
