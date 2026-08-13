@@ -4,6 +4,7 @@ import com.ownstream.protocol.MessageEnvelope
 import com.ownstream.protocol.ProtocolPreKeyBundle
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.flowOf
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -58,6 +59,8 @@ class InMemoryMessageTransport(
 
     override fun observeIncomingMessages(): Flow<MessageEnvelope> = incomingMessages
 
+    override fun observeConnectionStatus(): Flow<ConnectionStatus> = flowOf(ConnectionStatus.CONNECTED)
+
     override suspend fun publishPreKeyBundle(identityId: String, bundle: ProtocolPreKeyBundle) {
         relay.publishBundle(identityId, bundle)
     }
@@ -71,10 +74,6 @@ class InMemoryMessageTransport(
         relay.fetchOfflineMessages(localIdentityId).forEach {
             incomingMessages.emit(it)
         }
-        
-        // Start listening to the global bus
-        // In a real app, this would be a long-running collection
-        // For this test-only spike, we'll manually push filtered messages from the bus in the test harness
     }
 
     suspend fun receiveFromBus(envelope: MessageEnvelope) {

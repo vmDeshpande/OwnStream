@@ -1,5 +1,6 @@
 package com.ownstream.app.feature.chat
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ownstream.app.core.crypto.CryptoProvider
@@ -12,10 +13,13 @@ import com.ownstream.app.domain.repository.IdentityRepository
 import com.ownstream.app.domain.usecase.GetMessagesUseCase
 import com.ownstream.app.domain.usecase.SendMessageUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 @HiltViewModel
@@ -28,8 +32,12 @@ class ChatViewModel @Inject constructor(
     private val transport: MessageTransport
 ) : ViewModel() {
 
-    fun messages(conversationId: String): kotlinx.coroutines.flow.StateFlow<List<UiMessage>> {
-        // Trigger connection when observing messages
+    private val TAG = "ChatViewModel"
+
+    val connectionStatus = transport.observeConnectionStatus()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.ownstream.app.core.network.ConnectionStatus.DISCONNECTED)
+
+    fun messages(conversationId: String): StateFlow<List<UiMessage>> {
         val transport = transport
         if (transport is NetworkMessageTransport) {
             localIdentity.value?.id?.let { id ->
@@ -41,10 +49,24 @@ class ChatViewModel @Inject constructor(
 
         return getMessagesUseCase(conversationId)
             .map { list ->
+                val myId = localIdentity.value?.id
+                // Use a proper suspend-aware mapping
                 list.map { message ->
                     val decryptedContent = when (val p = message.payload) {
                         is MessagePayload.Text -> p.content
-                        is MessagePayload.Encrypted -> cryptoProvider.decryptPayload(p.encryptedPayload, message.senderId)
+                        is MessagePayload.Encrypted -> {
+                            if (message.senderId == myId) {
+                                "[Encrypted Outgoing]"
+                            } else {
+                                try {
+                                    // NO runBlocking here. Flow.map is already suspend.
+                                    cryptoProvider.decryptPayload(p.encryptedPayload, message.senderId)
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "Decryption error for ${message.id}: ${e.message}")
+                                    "[Decryption Failed]"
+                                }
+                            }
+                        }
                     }
                     UiMessage(message, decryptedContent)
                 }
@@ -61,7 +83,11 @@ class ChatViewModel @Inject constructor(
         if (text.isBlank()) return
         val senderId = localIdentity.value?.id ?: "unknown"
         viewModelScope.launch {
-            sendMessageUseCase(conversationId, text, senderId)
+            try {
+                sendMessageUseCase(conversationId, text, senderId)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to send message", e)
+            }
         }
     }
 }

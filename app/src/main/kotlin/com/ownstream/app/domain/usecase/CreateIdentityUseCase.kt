@@ -8,8 +8,10 @@ class CreateIdentityUseCase @Inject constructor(
     private val cryptoProvider: CryptoProvider,
     private val identityRepository: IdentityRepository
 ) {
-    suspend operator fun invoke(username: String) {
+    suspend operator fun invoke(username: String): com.ownstream.app.domain.model.Identity {
         val identity = cryptoProvider.generateIdentity(username)
-        identityRepository.saveIdentity(identity.copy(isLocal = true))
+        val localIdentity = identity.copy(isLocal = true)
+        identityRepository.saveIdentity(localIdentity)
+        return localIdentity
     }
 }

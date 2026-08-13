@@ -9,6 +9,7 @@ import kotlinx.serialization.Serializable
 data class RegisterDeviceRequest(
     val ownStreamId: String,
     val publicKeyP256: ByteArray, // Hardware-backed signing key for auth
+    val registrationId: Int,
     val deviceMetadata: Map<String, String> = emptyMap()
 )
 

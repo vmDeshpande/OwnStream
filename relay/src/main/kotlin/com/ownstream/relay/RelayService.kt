@@ -1,8 +1,6 @@
 package com.ownstream.relay
 
 import com.ownstream.protocol.*
-import kotlinx.datetime.*
-import kotlinx.datetime.Clock
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.sql.*
@@ -29,7 +27,8 @@ class RelayService {
         if (existingUser == null) {
             Users.insert {
                 it[ownStreamId] = request.ownStreamId
-                it[publicKeyP256] = request.publicKeyP256
+                it[publicKeyP256Base64] = ProtocolSerialization.toBase64(request.publicKeyP256)
+                it[createdAt] = System.currentTimeMillis()
             }
         }
 
@@ -37,7 +36,7 @@ class RelayService {
         Devices.insert {
             it[id] = deviceId
             it[ownStreamId] = request.ownStreamId
-            it[registrationId] = 0
+            it[registrationId] = request.registrationId
         }
 
         RegisterDeviceResponse(
@@ -65,7 +64,8 @@ class RelayService {
         val user = Users.selectAll().where { Users.ownStreamId eq request.ownStreamId }.singleOrNull()
             ?: throw IllegalArgumentException("User not found")
 
-        val publicKeyBytes = user[Users.publicKeyP256]
+        val publicKeyBase64 = user[Users.publicKeyP256Base64]
+        val publicKeyBytes = ProtocolSerialization.fromBase64(publicKeyBase64)
         if (!verifySignature(publicKeyBytes, request.nonce, request.signature)) {
             throw IllegalArgumentException("Invalid signature")
         }
@@ -88,25 +88,26 @@ class RelayService {
 
         PreKeyBundles.upsert(PreKeyBundles.deviceId) {
             it[PreKeyBundles.deviceId] = deviceId
-            it[identityKey] = bundle.identityKey
+            it[identityKeyBase64] = bundle.identityKeyBase64
             it[signedPreKeyId] = bundle.signedPreKeyId
-            it[signedPreKeyPublic] = bundle.signedPreKeyPublic
-            it[signedPreKeySignature] = bundle.signedPreKeySignature
+            it[signedPreKeyPublicBase64] = bundle.signedPreKeyPublicBase64
+            it[signedPreKeySignatureBase64] = bundle.signedPreKeySignatureBase64
             it[kyberPreKeyId] = bundle.kyberPreKeyId
-            it[kyberPreKeyPublic] = bundle.kyberPreKeyPublic
-            it[kyberPreKeySignature] = bundle.kyberPreKeySignature
+            it[kyberPreKeyPublicBase64] = bundle.kyberPreKeyPublicBase64
+            it[kyberPreKeySignatureBase64] = bundle.kyberPreKeySignatureBase64
         }
 
         Devices.update({ Devices.id eq deviceId }) {
             it[registrationId] = bundle.registrationId
+            it[lastSeen] = System.currentTimeMillis()
         }
 
-        // Handle one-time prekeys (simplified)
-        bundle.preKeyPublic?.let { preKeyBytes ->
+        // Handle one-time prekeys
+        bundle.preKeyPublicBase64?.let { base64 ->
             OneTimePreKeys.insert {
                 it[OneTimePreKeys.deviceId] = deviceId
                 it[keyId] = bundle.preKeyId
-                it[keyData] = preKeyBytes
+                it[keyDataBase64] = base64
             }
         }
     }
@@ -130,14 +131,14 @@ class RelayService {
                 registrationId = device[Devices.registrationId],
                 deviceId = 1, // Simplified
                 preKeyId = oneTimePreKey?.get(OneTimePreKeys.keyId) ?: -1,
-                preKeyPublic = oneTimePreKey?.get(OneTimePreKeys.keyData),
+                preKeyPublicBase64 = oneTimePreKey?.get(OneTimePreKeys.keyDataBase64),
                 signedPreKeyId = bundleRecord[PreKeyBundles.signedPreKeyId],
-                signedPreKeyPublic = bundleRecord[PreKeyBundles.signedPreKeyPublic],
-                signedPreKeySignature = bundleRecord[PreKeyBundles.signedPreKeySignature],
-                identityKey = bundleRecord[PreKeyBundles.identityKey],
+                signedPreKeyPublicBase64 = bundleRecord[PreKeyBundles.signedPreKeyPublicBase64],
+                signedPreKeySignatureBase64 = bundleRecord[PreKeyBundles.signedPreKeySignatureBase64],
+                identityKeyBase64 = bundleRecord[PreKeyBundles.identityKeyBase64],
                 kyberPreKeyId = bundleRecord[PreKeyBundles.kyberPreKeyId],
-                kyberPreKeyPublic = bundleRecord[PreKeyBundles.kyberPreKeyPublic],
-                kyberPreKeySignature = bundleRecord[PreKeyBundles.kyberPreKeySignature]
+                kyberPreKeyPublicBase64 = bundleRecord[PreKeyBundles.kyberPreKeyPublicBase64],
+                kyberPreKeySignatureBase64 = bundleRecord[PreKeyBundles.kyberPreKeySignatureBase64]
             )
         )
     }
@@ -146,14 +147,14 @@ class RelayService {
         // Idempotency: check if messageId already exists
         val exists = QueuedMessages.selectAll().where { QueuedMessages.messageId eq envelope.messageId }.any()
         if (!exists) {
-            val envelopeData = json.encodeToString(envelope).toByteArray()
-            val now = Clock.System.now()
-            val expiresAt = now.plus(30, DateTimeUnit.DAY, TimeZone.UTC)
+            val envelopeJson = json.encodeToString(envelope)
+            val now = System.currentTimeMillis()
+            val expiresAt = now + (30L * 24 * 60 * 60 * 1000) // 30 days
             
             QueuedMessages.insert {
                 it[messageId] = envelope.messageId
                 it[recipientId] = envelope.recipientId
-                it[this.envelopeData] = envelopeData
+                it[this.envelopeDataBase64] = ProtocolSerialization.toBase64(envelopeJson.toByteArray())
                 it[this.createdAt] = now
                 it[this.expiresAt] = expiresAt
             }
@@ -161,12 +162,13 @@ class RelayService {
     }
 
     suspend fun fetchQueuedMessages(recipientId: String): List<MessageEnvelope> = DatabaseFactory.dbQuery {
-        val now = Clock.System.now()
+        val now = System.currentTimeMillis()
         QueuedMessages.selectAll()
             .where { (QueuedMessages.recipientId eq recipientId) and (QueuedMessages.expiresAt greater now) }
             .orderBy(QueuedMessages.createdAt to SortOrder.ASC)
             .map {
-                json.decodeFromString<MessageEnvelope>(String(it[QueuedMessages.envelopeData]))
+                val jsonStr = String(ProtocolSerialization.fromBase64(it[QueuedMessages.envelopeDataBase64]))
+                json.decodeFromString<MessageEnvelope>(jsonStr)
             }
     }
 
@@ -189,4 +191,3 @@ class RelayService {
         }
     }
 }
-

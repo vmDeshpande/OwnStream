@@ -8,20 +8,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Send
-import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.ownstream.app.core.network.ConnectionStatus
 import com.ownstream.app.domain.model.Conversation
-import com.ownstream.app.domain.model.Message
-import com.ownstream.app.domain.model.MessagePayload
-import com.ownstream.app.ui.common.StorageBadge
+import com.ownstream.app.feature.conversations.ConnectionIndicator
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -32,6 +28,7 @@ fun ChatScreen(
 ) {
     val messages by viewModel.messages(conversationId).collectAsState()
     val localIdentity by viewModel.localIdentity.collectAsState()
+    val connectionStatus by viewModel.connectionStatus.collectAsState()
     var conversation by remember { mutableStateOf<Conversation?>(null) }
     var text by remember { mutableStateOf("") }
 
@@ -45,9 +42,7 @@ fun ChatScreen(
                 title = {
                     Column {
                         Text(conversation?.title ?: "Chat", style = MaterialTheme.typography.titleMedium)
-                        conversation?.let {
-                            StorageBadge(providerType = it.storageConfig.providerType)
-                        }
+                        ConnectionIndicator(connectionStatus)
                     }
                 },
                 navigationIcon = {
@@ -71,7 +66,8 @@ fun ChatScreen(
                         onValueChange = { text = it },
                         modifier = Modifier.weight(1f),
                         placeholder = { Text("Message...") },
-                        maxLines = 4
+                        maxLines = 4,
+                        enabled = connectionStatus == ConnectionStatus.CONNECTED
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     IconButton(
@@ -81,9 +77,11 @@ fun ChatScreen(
                                 text = ""
                             }
                         },
+                        enabled = text.isNotBlank() && connectionStatus == ConnectionStatus.CONNECTED,
                         colors = IconButtonDefaults.iconButtonColors(
                             containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary
+                            contentColor = MaterialTheme.colorScheme.onPrimary,
+                            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant
                         )
                     ) {
                         Icon(Icons.Default.Send, contentDescription = "Send")
@@ -92,17 +90,23 @@ fun ChatScreen(
             }
         }
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-            reverseLayout = false,
-            contentPadding = PaddingValues(16.dp)
-        ) {
-            items(messages) { uiMessage ->
-                val isFromMe = uiMessage.originalMessage.senderId == localIdentity?.id
-                MessageBubble(uiMessage, isFromMe)
-                Spacer(modifier = Modifier.height(8.dp))
+        if (connectionStatus != ConnectionStatus.CONNECTED && messages.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                reverseLayout = false,
+                contentPadding = PaddingValues(16.dp)
+            ) {
+                items(messages) { uiMessage ->
+                    val isFromMe = uiMessage.originalMessage.senderId == localIdentity?.id
+                    MessageBubble(uiMessage, isFromMe)
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
             }
         }
     }

@@ -1,11 +1,12 @@
 package com.ownstream.app.core.crypto
 
-import android.util.Base64
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import android.util.Base64 as AndroidBase64
 import android.util.Log
 import com.ownstream.app.domain.model.Identity
 import com.ownstream.app.domain.repository.IdentityRepository
-import com.ownstream.protocol.EncryptedPayload
-import com.ownstream.protocol.ProtocolPreKeyBundle
+import com.ownstream.protocol.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.signal.libsignal.protocol.*
@@ -19,48 +20,64 @@ import org.signal.libsignal.protocol.message.PreKeySignalMessage
 import org.signal.libsignal.protocol.message.SignalMessage
 import org.signal.libsignal.protocol.state.*
 import org.signal.libsignal.protocol.util.KeyHelper
+import java.security.KeyPairGenerator
+import java.security.KeyStore
 import java.util.*
 import javax.inject.Inject
 
 class SignalCryptoProvider @Inject constructor(
     private val store: SignalProtocolStoreAdapter,
-    private val identityRepository: IdentityRepository
+    private val identityRepository: IdentityRepository,
+    @IdentityKeyAlias private val identityKeyAlias: String,
+    private val keyStoreProvider: KeyStoreProvider
 ) : CryptoProvider {
 
     private val TAG = "SignalCryptoProvider"
 
     override suspend fun generateIdentity(username: String): Identity = withContext(Dispatchers.Default) {
         Log.d(TAG, "[6E] Generating identity for $username")
+        
+        // 1. Generate Signal Identity
         val identityKeyPair = IdentityKeyPair.generate()
         val registrationId = KeyHelper.generateRegistrationId(false)
         
-        Log.d(TAG, "[6E] Saving local identity...")
+        Log.d(TAG, "[6E] Saving Signal identity...")
         store.saveLocalIdentity(registrationId, identityKeyPair)
-        Log.d(TAG, "[6E] Identity saved.")
+
+        // 2. Generate hardware-backed Auth Key for Relay login
+        try {
+            val keyStore = keyStoreProvider.getKeyStore()
+            if (!keyStore.containsAlias(identityKeyAlias)) {
+                Log.d(TAG, "[6E] Generating hardware-backed auth key: $identityKeyAlias")
+                val kpg = KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_EC, "AndroidKeyStore")
+                kpg.initialize(
+                    KeyGenParameterSpec.Builder(identityKeyAlias, KeyProperties.PURPOSE_SIGN)
+                        .setDigests(KeyProperties.DIGEST_SHA256)
+                        .build()
+                )
+                kpg.generateKeyPair()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to generate Keystore auth key", e)
+        }
 
         // Map to OwnStream domain model
-        val id = "os_" + UUID.randomUUID().toString().take(8)
+        val id = "os_" + UUID.randomUUID().toString().replace("-", "").take(8)
 
         Identity(
             id = id,
             username = username,
-            publicKey = Base64.encodeToString(identityKeyPair.publicKey.publicKey.serialize(), Base64.NO_WRAP),
+            publicKey = AndroidBase64.encodeToString(identityKeyPair.publicKey.publicKey.serialize(), AndroidBase64.NO_WRAP),
             isLocal = true
         )
     }
 
     override suspend fun encryptPayload(payload: String, recipientIds: List<String>): EncryptedPayload = withContext(Dispatchers.Default) {
         val localIdentity = identityRepository.getLocalIdentity() ?: throw IllegalStateException("Local identity missing")
-        
-        // Filter out self from recipients for 1:1 E2EE
         val actualRecipients = recipientIds.filter { it != localIdentity.id }
         
-        if (actualRecipients.size > 1) {
-            throw UnsupportedOperationException("Multi-recipient encryption not supported in Step 4")
-        }
-        if (actualRecipients.isEmpty()) {
-            throw IllegalArgumentException("No recipients specified for encryption (excluding self)")
-        }
+        if (actualRecipients.size > 1) throw UnsupportedOperationException("Multi-recipient encryption not supported")
+        if (actualRecipients.isEmpty()) throw IllegalArgumentException("No recipients specified")
 
         val recipientId = actualRecipients.first()
         val remoteAddress = SignalProtocolAddress(recipientId, 1)
@@ -74,7 +91,7 @@ class SignalCryptoProvider @Inject constructor(
         val ciphertext = cipher.encrypt(payload.toByteArray())
 
         EncryptedPayload(
-            data = ciphertext.serialize(),
+            dataBase64 = ProtocolSerialization.toBase64(ciphertext.serialize()),
             algorithm = "SIGNAL_V1",
             isEncrypted = true,
             metadata = mapOf(
@@ -86,11 +103,7 @@ class SignalCryptoProvider @Inject constructor(
 
     override suspend fun decryptPayload(encryptedPayload: EncryptedPayload, senderId: String): String = withContext(Dispatchers.Default) {
         if (encryptedPayload.algorithm == "NONE") {
-            return@withContext String(encryptedPayload.data)
-        }
-
-        if (encryptedPayload.algorithm != "SIGNAL_V1") {
-            return@withContext "Unsupported algorithm: ${encryptedPayload.algorithm}"
+            return@withContext String(ProtocolSerialization.fromBase64(encryptedPayload.dataBase64))
         }
 
         val localIdentity = identityRepository.getLocalIdentity() ?: throw IllegalStateException("Local identity missing")
@@ -98,27 +111,20 @@ class SignalCryptoProvider @Inject constructor(
         val remoteAddress = SignalProtocolAddress(senderId, 1)
 
         val cipher = SessionCipher(store, localAddress, remoteAddress)
-        
-        val messageType = encryptedPayload.metadata["type"]?.toInt() ?: throw IllegalArgumentException("Missing message type metadata")
+        val messageType = encryptedPayload.metadata["type"]?.toInt() ?: throw IllegalArgumentException("Missing message type")
+        val data = ProtocolSerialization.fromBase64(encryptedPayload.dataBase64)
         
         val decryptedBytes = when (messageType) {
-            CiphertextMessage.PREKEY_TYPE -> {
-                val message = PreKeySignalMessage(encryptedPayload.data)
-                cipher.decrypt(message)
-            }
-            CiphertextMessage.WHISPER_TYPE -> {
-                val message = SignalMessage(encryptedPayload.data)
-                cipher.decrypt(message)
-            }
-            else -> throw IllegalArgumentException("Unknown Signal message type: $messageType")
+            CiphertextMessage.PREKEY_TYPE -> cipher.decrypt(PreKeySignalMessage(data))
+            CiphertextMessage.WHISPER_TYPE -> cipher.decrypt(SignalMessage(data))
+            else -> throw IllegalArgumentException("Unknown Signal type: $messageType")
         }
 
         String(decryptedBytes)
     }
 
     override suspend fun hasSession(recipientId: String): Boolean = withContext(Dispatchers.IO) {
-        val address = SignalProtocolAddress(recipientId, 1)
-        store.containsSession(address)
+        store.containsSession(SignalProtocolAddress(recipientId, 1))
     }
 
     override suspend fun establishSession(recipientId: String, bundle: ProtocolPreKeyBundle) = withContext(Dispatchers.Default) {
@@ -130,14 +136,14 @@ class SignalCryptoProvider @Inject constructor(
             bundle.registrationId,
             bundle.deviceId,
             bundle.preKeyId,
-            bundle.preKeyPublic?.let { ECPublicKey(it) },
+            bundle.preKeyPublicBase64?.let { ECPublicKey(ProtocolSerialization.fromBase64(it)) },
             bundle.signedPreKeyId,
-            ECPublicKey(bundle.signedPreKeyPublic),
-            bundle.signedPreKeySignature,
-            IdentityKey(ECPublicKey(bundle.identityKey)),
+            ECPublicKey(ProtocolSerialization.fromBase64(bundle.signedPreKeyPublicBase64)),
+            ProtocolSerialization.fromBase64(bundle.signedPreKeySignatureBase64),
+            IdentityKey(ECPublicKey(ProtocolSerialization.fromBase64(bundle.identityKeyBase64))),
             bundle.kyberPreKeyId,
-            KEMPublicKey(bundle.kyberPreKeyPublic),
-            bundle.kyberPreKeySignature
+            KEMPublicKey(ProtocolSerialization.fromBase64(bundle.kyberPreKeyPublicBase64)),
+            ProtocolSerialization.fromBase64(bundle.kyberPreKeySignatureBase64)
         )
 
         val builder = SessionBuilder(store, remoteAddress, localAddress)
@@ -150,8 +156,6 @@ class SignalCryptoProvider @Inject constructor(
         val identityKeyPair = store.identityKeyPair
         val registrationId = store.localRegistrationId
         
-        // In a real app, we would rotate these. For now, generate on demand or fetch existing.
-        // We'll generate a single set for the bundle.
         val preKeyId = 1
         val preKey = ECKeyPair.generate()
         store.storePreKey(preKeyId, PreKeyRecord(preKeyId, preKey))
@@ -170,14 +174,14 @@ class SignalCryptoProvider @Inject constructor(
             registrationId = registrationId,
             deviceId = 1,
             preKeyId = preKeyId,
-            preKeyPublic = preKey.publicKey.serialize(),
+            preKeyPublicBase64 = ProtocolSerialization.toBase64(preKey.publicKey.serialize()),
             signedPreKeyId = signedPreKeyId,
-            signedPreKeyPublic = signedPreKey.publicKey.serialize(),
-            signedPreKeySignature = signature,
-            identityKey = identityKeyPair.publicKey.publicKey.serialize(),
+            signedPreKeyPublicBase64 = ProtocolSerialization.toBase64(signedPreKey.publicKey.serialize()),
+            signedPreKeySignatureBase64 = ProtocolSerialization.toBase64(signature),
+            identityKeyBase64 = ProtocolSerialization.toBase64(identityKeyPair.publicKey.publicKey.serialize()),
             kyberPreKeyId = kyberPreKeyId,
-            kyberPreKeyPublic = kyberPreKey.publicKey.serialize(),
-            kyberPreKeySignature = kyberSignature
+            kyberPreKeyPublicBase64 = ProtocolSerialization.toBase64(kyberPreKey.publicKey.serialize()),
+            kyberPreKeySignatureBase64 = ProtocolSerialization.toBase64(kyberSignature)
         )
     }
 

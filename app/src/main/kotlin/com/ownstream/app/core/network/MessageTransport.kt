@@ -31,6 +31,11 @@ interface MessageTransport {
     suspend fun fetchPreKeyBundle(identityId: String): ProtocolPreKeyBundle?
 
     /**
+     * Observes the current connection status of the transport.
+     */
+    fun observeConnectionStatus(): Flow<ConnectionStatus>
+
+    /**
      * Connects to the transport layer (e.g., WebSocket, Relay, Mesh).
      */
     suspend fun connect()
@@ -40,3 +45,8 @@ interface MessageTransport {
      */
     suspend fun disconnect()
 }
+
+enum class ConnectionStatus {
+    DISCONNECTED, CONNECTING, CONNECTED, ERROR
+}
+

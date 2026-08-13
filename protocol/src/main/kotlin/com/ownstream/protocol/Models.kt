@@ -18,7 +18,7 @@ object OwnStreamProtocol {
  */
 @Serializable
 data class EncryptedPayload(
-    val data: ByteArray,
+    val dataBase64: String,
     val algorithm: String,
     val isEncrypted: Boolean,
     val metadata: Map<String, String> = emptyMap()
@@ -33,14 +33,14 @@ data class ProtocolPreKeyBundle(
     val registrationId: Int,
     val deviceId: Int,
     val preKeyId: Int,
-    val preKeyPublic: ByteArray?,
+    val preKeyPublicBase64: String?,
     val signedPreKeyId: Int,
-    val signedPreKeyPublic: ByteArray,
-    val signedPreKeySignature: ByteArray,
-    val identityKey: ByteArray,
+    val signedPreKeyPublicBase64: String,
+    val signedPreKeySignatureBase64: String,
+    val identityKeyBase64: String,
     val kyberPreKeyId: Int,
-    val kyberPreKeyPublic: ByteArray,
-    val kyberPreKeySignature: ByteArray
+    val kyberPreKeyPublicBase64: String,
+    val kyberPreKeySignatureBase64: String
 )
 
 /**

@@ -24,29 +24,43 @@ fun main() {
 }
 
 fun Application.module() {
+    println("[E2E-Relay] Module starting...")
+    
     // Shared components
     val relayService = RelayService()
     val connectionRegistry = ConnectionRegistry()
     val json = Json { ignoreUnknownKeys = true }
 
     // In-memory H2 for local dev if Postgres not provided
-    val dbUrl = environment.config.propertyOrNull("storage.jdbcUrl")?.getString() ?: "jdbc:h2:mem:${java.util.UUID.randomUUID()};DB_CLOSE_DELAY=-1"
+    val dbUrl = environment.config.propertyOrNull("storage.jdbcUrl")?.getString() ?: "jdbc:h2:mem:ownstream_relay;DB_CLOSE_DELAY=-1"
     val dbUser = environment.config.propertyOrNull("storage.user")?.getString() ?: "sa"
     val dbPass = environment.config.propertyOrNull("storage.password")?.getString() ?: ""
     
+    println("[E2E-Relay] Database type: ${if (dbUrl.startsWith("jdbc:h2")) "H2" else "Postgres"}")
+    
     // We'll use H2 for local tests/dev if Postgres isn't configured
-    if (dbUrl.startsWith("jdbc:h2")) {
-        org.jetbrains.exposed.sql.Database.connect(dbUrl, driver = "org.h2.Driver", user = dbUser, password = dbPass)
-        org.jetbrains.exposed.sql.transactions.transaction {
-            org.jetbrains.exposed.sql.SchemaUtils.create(Users, Devices, PreKeyBundles, OneTimePreKeys, QueuedMessages)
+    try {
+        if (dbUrl.startsWith("jdbc:h2")) {
+            println("[E2E-Relay] Connecting to H2...")
+            org.jetbrains.exposed.sql.Database.connect(dbUrl, driver = "org.h2.Driver", user = dbUser, password = dbPass)
+            println("[E2E-Relay] Creating schema...")
+            org.jetbrains.exposed.sql.transactions.transaction {
+                org.jetbrains.exposed.sql.SchemaUtils.create(Users, Devices, PreKeyBundles, OneTimePreKeys, QueuedMessages)
+            }
+        } else {
+            println("[E2E-Relay] Initializing DatabaseFactory...")
+            DatabaseFactory.init(dbUrl, dbUser, dbPass)
         }
-    } else {
-        DatabaseFactory.init(dbUrl, dbUser, dbPass)
+        println("[E2E-Relay] Database initialized.")
+    } catch (e: Exception) {
+        println("[E2E-Relay] Database initialization FAILED: ${e.message}")
+        e.printStackTrace()
     }
 
     install(ContentNegotiation) {
         json(json)
     }
+    // ... rest of the function
 
     install(WebSockets) {
         pingPeriod = 15.seconds

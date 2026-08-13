@@ -5,10 +5,11 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.ownstream.app.feature.onboarding.IdentityScreen
-import com.ownstream.app.feature.onboarding.StorageSelectionScreen
 import com.ownstream.app.feature.onboarding.WelcomeScreen
 import com.ownstream.app.feature.conversations.ChatListScreen
 import com.ownstream.app.feature.chat.ChatScreen
+import com.ownstream.app.feature.contacts.NewConversationScreen
+import com.ownstream.app.feature.settings.SettingsScreen
 
 @Composable
 fun OwnStreamNavigation(
@@ -26,12 +27,7 @@ fun OwnStreamNavigation(
         }
         composable(Screen.OnboardingIdentity.route) {
             IdentityScreen(
-                onIdentityCreated = { navController.navigate(Screen.OnboardingStorage.route) }
-            )
-        }
-        composable(Screen.OnboardingStorage.route) {
-            StorageSelectionScreen(
-                onStorageSelected = {
+                onIdentityCreated = {
                     navController.navigate(Screen.Main.route) {
                         popUpTo(Screen.OnboardingWelcome.route) { inclusive = true }
                     }
@@ -41,7 +37,8 @@ fun OwnStreamNavigation(
         composable(Screen.Main.route) {
             ChatListScreen(
                 onChatSelected = { id -> navController.navigate(Screen.Chat.createRoute(id)) },
-                onSettingsClick = { navController.navigate(Screen.Settings.route) }
+                onSettingsClick = { navController.navigate(Screen.Settings.route) },
+                onNewMessageClick = { navController.navigate(Screen.NewConversation.route) }
             )
         }
         composable(Screen.Chat.route) { backStackEntry ->
@@ -51,10 +48,21 @@ fun OwnStreamNavigation(
                 onBack = { navController.popBackStack() }
             )
         }
+        composable(Screen.NewConversation.route) {
+            NewConversationScreen(
+                onBack = { navController.popBackStack() },
+                onConversationCreated = { id ->
+                    navController.navigate(Screen.Chat.createRoute(id)) {
+                        popUpTo(Screen.NewConversation.route) { inclusive = true }
+                    }
+                }
+            )
+        }
         composable(Screen.Settings.route) {
-            com.ownstream.app.feature.settings.SettingsScreen(
+            SettingsScreen(
                 onBack = { navController.popBackStack() }
             )
         }
     }
 }
+

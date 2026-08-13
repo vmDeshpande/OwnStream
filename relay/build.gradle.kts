@@ -23,7 +23,6 @@ dependencies {
     
     implementation(libs.exposed.core)
     implementation(libs.exposed.jdbc)
-    implementation(libs.exposed.kotlin.datetime)
     implementation(libs.postgresql)
     implementation(libs.h2)
     implementation(libs.hikaricp)

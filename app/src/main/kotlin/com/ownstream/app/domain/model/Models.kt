@@ -50,7 +50,7 @@ sealed class MessagePayload {
 
 @Serializable
 enum class MessageStatus {
-    SENDING, SENT, DELIVERED, READ, FAILED
+    SENDING, SENT, DELIVERED, READ, FAILED, RECEIVED
 }
 
 @Serializable

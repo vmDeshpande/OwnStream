@@ -51,7 +51,7 @@ class LocalCryptoProvider @Inject constructor() : CryptoProvider {
         // Placeholder: In a real implementation, we would use the recipient's public keys.
         // For MVP, we return the payload as-is but marked as unencrypted.
         return EncryptedPayload(
-            data = payload.toByteArray(),
+            dataBase64 = com.ownstream.protocol.ProtocolSerialization.toBase64(payload.toByteArray()),
             algorithm = "NONE",
             isEncrypted = false,
             metadata = mapOf("note" to "E2EE not yet integrated")
@@ -59,7 +59,7 @@ class LocalCryptoProvider @Inject constructor() : CryptoProvider {
     }
 
     override suspend fun decryptPayload(encryptedPayload: EncryptedPayload, senderId: String): String {
-        return String(encryptedPayload.data)
+        return String(com.ownstream.protocol.ProtocolSerialization.fromBase64(encryptedPayload.dataBase64))
     }
 
     override suspend fun hasSession(recipientId: String): Boolean = true
