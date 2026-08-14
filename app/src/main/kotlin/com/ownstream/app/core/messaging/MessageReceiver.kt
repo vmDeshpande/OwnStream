@@ -13,6 +13,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -47,8 +48,22 @@ class MessageReceiver @Inject constructor(
             val payload = try {
                 json.decodeFromString<MessagePayload>(decryptedJson)
             } catch (e: Exception) {
-                // Fallback for raw text packets if any
-                MessagePayload.Text(decryptedJson)
+                // Self-healing: Check if this is a Media JSON without a discriminator
+                if (decryptedJson.contains("\"metadata\":") && decryptedJson.contains("\"fileId\":")) {
+                    try {
+                        val mediaMetadata = json.decodeFromString<MediaMetadata>(
+                            // If it's wrapped in {"metadata":...}, extract it
+                            if (decryptedJson.startsWith("{\"metadata\":")) {
+                                json.parseToJsonElement(decryptedJson).jsonObject["metadata"].toString()
+                            } else decryptedJson
+                        )
+                        MessagePayload.Media(mediaMetadata)
+                    } catch (e2: Exception) {
+                        MessagePayload.Text(decryptedJson)
+                    }
+                } else {
+                    MessagePayload.Text(decryptedJson)
+                }
             }
 
             // 3. Ensure conversation exists

@@ -54,7 +54,7 @@ class SendMediaUseCase @Inject constructor(
             thumbnailBase64 = thumbnail?.let { ProtocolSerialization.toBase64(it) }
         )
 
-        val payload = MessagePayload.Media(metadata)
+        val payload: MessagePayload = MessagePayload.Media(metadata)
         val payloadJson = json.encodeToString(payload)
 
         // 4. Encrypt Metadata via Signal
