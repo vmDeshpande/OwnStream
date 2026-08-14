@@ -26,6 +26,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
+        // Ensure connection starts when identity is available
+        // messageReceiver is also started here
         messageReceiver.startObserving()
         
         setContent {

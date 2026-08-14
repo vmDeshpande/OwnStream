@@ -98,6 +98,7 @@ fun MessageEntity.toDomain(json: Json): Message {
     val payload = when (payloadType) {
         "TEXT" -> MessagePayload.Text(payloadData)
         "ENCRYPTED" -> MessagePayload.Encrypted(json.decodeFromString<EncryptedPayload>(payloadData))
+        "MEDIA" -> MessagePayload.Media(json.decodeFromString<MediaMetadata>(payloadData))
         else -> MessagePayload.Text("Unknown payload type")
     }
     return Message(
@@ -135,6 +136,7 @@ fun Message.toEntity(json: Json): MessageEntity {
     val (type, data) = when (val p = payload) {
         is MessagePayload.Text -> "TEXT" to p.content
         is MessagePayload.Encrypted -> "ENCRYPTED" to json.encodeToString(p.encryptedPayload)
+        is MessagePayload.Media -> "MEDIA" to json.encodeToString(p.metadata)
     }
     return MessageEntity(
         id = id,

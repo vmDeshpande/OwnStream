@@ -178,7 +178,30 @@ class RelayService {
         }
     }
 
+    suspend fun uploadMedia(ownStreamId: String, request: UploadMediaRequest): UploadMediaResponse = DatabaseFactory.dbQuery {
+        val fileId = UUID.randomUUID().toString()
+        MediaFiles.insert {
+            it[id] = fileId
+            it[ownerId] = ownStreamId
+            it[fileName] = request.fileName
+            it[encryptedDataBase64] = request.encryptedDataBase64
+            it[createdAt] = System.currentTimeMillis()
+        }
+        UploadMediaResponse(fileId)
+    }
+
+    suspend fun downloadMedia(fileId: String): DownloadMediaResponse = DatabaseFactory.dbQuery {
+        val file = MediaFiles.selectAll().where { MediaFiles.id eq fileId }.singleOrNull()
+            ?: throw IllegalArgumentException("File not found")
+        
+        DownloadMediaResponse(
+            fileName = file[MediaFiles.fileName],
+            encryptedDataBase64 = file[MediaFiles.encryptedDataBase64]
+        )
+    }
+
     private fun verifySignature(publicKeyBytes: ByteArray, data: ByteArray, signature: ByteArray): Boolean {
+
         return try {
             val keyFactory = KeyFactory.getInstance("EC")
             val publicKey = keyFactory.generatePublic(X509EncodedKeySpec(publicKeyBytes))

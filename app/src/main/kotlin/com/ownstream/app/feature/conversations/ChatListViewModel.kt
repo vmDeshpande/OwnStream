@@ -11,6 +11,7 @@ import com.ownstream.app.domain.repository.IdentityRepository
 import com.ownstream.app.domain.usecase.GetConversationsUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -24,6 +25,9 @@ class ChatListViewModel @Inject constructor(
     private val transport: MessageTransport
 ) : ViewModel() {
 
+    private var lastPreKeyPublishTime = 0L
+    private val PREKEY_PUBLISH_INTERVAL_MS = 15 * 60 * 1000 // 15 minutes
+
     val conversations = getConversationsUseCase()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -36,20 +40,23 @@ class ChatListViewModel @Inject constructor(
     init {
         // Automatically connect and refresh prekeys when identity is available
         viewModelScope.launch {
-            identityRepository.observeLocalIdentity().collect { identity ->
+            identityRepository.observeLocalIdentity().collectLatest { identity ->
                 if (identity != null) {
                     if (transport is NetworkMessageTransport) {
-                        launch { transport.connect(identity.id) }
+                        transport.connect(identity.id)
                         
-                        // Ensure prekeys are on the relay (handles relay restarts)
-                        // Wait for connection to be stable first
                         transport.observeConnectionStatus().collect { status ->
                             if (status == ConnectionStatus.CONNECTED) {
-                                try {
-                                    val bundle = cryptoProvider.getLocalPreKeyBundle()
-                                    transport.publishPreKeyBundle(identity.id, bundle)
-                                } catch (e: Exception) {
-                                    android.util.Log.e("ChatListVM", "Failed to refresh prekeys", e)
+                                val now = System.currentTimeMillis()
+                                if (now - lastPreKeyPublishTime > PREKEY_PUBLISH_INTERVAL_MS) {
+                                    try {
+                                        val bundle = cryptoProvider.getLocalPreKeyBundle()
+                                        transport.publishPreKeyBundle(identity.id, bundle)
+                                        lastPreKeyPublishTime = now
+                                        android.util.Log.i("ChatListVM", "PreKeys refreshed for ${identity.id}")
+                                    } catch (e: Exception) {
+                                        android.util.Log.e("ChatListVM", "Failed to refresh prekeys", e)
+                                    }
                                 }
                             }
                         }

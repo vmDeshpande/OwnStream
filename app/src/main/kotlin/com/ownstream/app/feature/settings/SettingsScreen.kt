@@ -11,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 
@@ -42,9 +43,9 @@ fun SettingsScreen(
                 .padding(padding)
         ) {
             item {
-                ProfileSection(identity?.username ?: "Unknown", identity?.id ?: "No ID")
+                ProfileSection(identity?.username ?: "Anonymous", identity?.id ?: "No ID")
             }
-            item { HorizontalDivider() }
+            item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
             item {
                 SettingsItem(
                     "Relay Server", 
@@ -54,14 +55,26 @@ fun SettingsScreen(
                 )
             }
             item {
-                SettingsItem("Privacy & Security", Icons.Default.Security, "End-to-end encryption enabled")
+                SettingsItem(
+                    "Security", 
+                    Icons.Default.Security, 
+                    "Signal E2EE enabled. Private keys stored in Android Keystore."
+                )
             }
             item {
-                SettingsItem("Storage", Icons.Default.Storage, "Local Device Storage")
+                SettingsItem(
+                    "Storage", 
+                    Icons.Default.Storage, 
+                    "Current Mode: Local Device Storage"
+                )
             }
-            item { HorizontalDivider() }
+            item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
             item {
-                SettingsItem("About OwnStream", Icons.Default.Info, "Version 0.1.0 (MVP)")
+                SettingsItem(
+                    "About", 
+                    Icons.Default.Info, 
+                    "OwnStream MVP v0.1.0"
+                )
             }
         }
 
@@ -70,12 +83,17 @@ fun SettingsScreen(
                 onDismissRequest = { showRelayDialog = false },
                 title = { Text("Relay URL") },
                 text = {
-                    OutlinedTextField(
-                        value = relayUrl,
-                        onValueChange = { relayUrl = it },
-                        label = { Text("Server Address") },
-                        singleLine = true
-                    )
+                    Column {
+                        Text("Connect your physical device to the PC's LAN IP for testing.", style = MaterialTheme.typography.bodySmall)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        OutlinedTextField(
+                            value = relayUrl,
+                            onValueChange = { relayUrl = it },
+                            label = { Text("Server Address") },
+                            singleLine = true,
+                            placeholder = { Text("http://192.168.x.x:8080") }
+                        )
+                    }
                 },
                 confirmButton = {
                     TextButton(onClick = {
@@ -114,9 +132,9 @@ fun ProfileSection(username: String, id: String) {
         }
         Spacer(modifier = Modifier.width(16.dp))
         Column {
-            Text(username, style = MaterialTheme.typography.titleLarge)
+            Text(username, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             SelectionContainer {
-                Text(id, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(id, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
             }
         }
     }
@@ -127,7 +145,7 @@ fun SettingsItem(title: String, icon: ImageVector, subtitle: String? = null, onC
     ListItem(
         headlineContent = { Text(title) },
         supportingContent = subtitle?.let { { Text(it) } },
-        leadingContent = { Icon(icon, contentDescription = null) },
-        modifier = Modifier.padding(vertical = 4.dp).clickable { onClick() }
+        leadingContent = { Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+        modifier = Modifier.clickable { onClick() }
     )
 }

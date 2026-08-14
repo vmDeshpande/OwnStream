@@ -98,6 +98,24 @@ class NetworkMessageTransport @Inject constructor(
         }
     }
 
+    override suspend fun uploadMedia(request: UploadMediaRequest): String {
+        val token = secureStorage.getAuthToken() ?: throw IllegalStateException("Not authenticated")
+        val response: UploadMediaResponse = client.post("${relayConfig.baseUrl}/v1/media") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            contentType(ContentType.Application.Json)
+            setBody(request)
+        }.body()
+        return response.fileId
+    }
+
+    override suspend fun downloadMedia(fileId: String): DownloadMediaResponse {
+        val token = secureStorage.getAuthToken() ?: throw IllegalStateException("Not authenticated")
+        return client.get("${relayConfig.baseUrl}/v1/media/$fileId") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+        }.body()
+    }
+
+
     override suspend fun connect() { }
 
     fun connect(ownStreamId: String) {

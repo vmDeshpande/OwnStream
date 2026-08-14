@@ -21,7 +21,6 @@ import org.signal.libsignal.protocol.message.SignalMessage
 import org.signal.libsignal.protocol.state.*
 import org.signal.libsignal.protocol.util.KeyHelper
 import java.security.KeyPairGenerator
-import java.security.KeyStore
 import java.util.*
 import javax.inject.Inject
 
@@ -111,13 +110,23 @@ class SignalCryptoProvider @Inject constructor(
         val remoteAddress = SignalProtocolAddress(senderId, 1)
 
         val cipher = SessionCipher(store, localAddress, remoteAddress)
-        val messageType = encryptedPayload.metadata["type"]?.toInt() ?: throw IllegalArgumentException("Missing message type")
+        val messageType = try {
+            encryptedPayload.metadata["type"]?.toInt()
+        } catch (e: Exception) {
+            null
+        } ?: throw IllegalArgumentException("Missing or invalid message type in metadata")
+
         val data = ProtocolSerialization.fromBase64(encryptedPayload.dataBase64)
         
-        val decryptedBytes = when (messageType) {
-            CiphertextMessage.PREKEY_TYPE -> cipher.decrypt(PreKeySignalMessage(data))
-            CiphertextMessage.WHISPER_TYPE -> cipher.decrypt(SignalMessage(data))
-            else -> throw IllegalArgumentException("Unknown Signal type: $messageType")
+        val decryptedBytes = try {
+            when (messageType) {
+                CiphertextMessage.PREKEY_TYPE -> cipher.decrypt(PreKeySignalMessage(data))
+                CiphertextMessage.WHISPER_TYPE -> cipher.decrypt(SignalMessage(data))
+                else -> throw IllegalArgumentException("Unknown Signal type: $messageType")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Signal decryption failed: ${e.message}")
+            throw e
         }
 
         String(decryptedBytes)
@@ -156,19 +165,36 @@ class SignalCryptoProvider @Inject constructor(
         val identityKeyPair = store.identityKeyPair
         val registrationId = store.localRegistrationId
         
-        val preKeyId = 1
+        // 1. Get or generate Signed PreKey
+        val signedPreKeyId = 1
+        val signedPreKeyRecord = try {
+            store.loadSignedPreKey(signedPreKeyId)
+        } catch (e: Exception) {
+            val key = ECKeyPair.generate()
+            val signature = identityKeyPair.privateKey.calculateSignature(key.publicKey.serialize())
+            val record = SignedPreKeyRecord(signedPreKeyId, System.currentTimeMillis(), key, signature)
+            store.storeSignedPreKey(signedPreKeyId, record)
+            record
+        }
+
+        // 2. Get or generate Kyber PreKey
+        val kyberPreKeyId = 1
+        val kyberPreKeyRecord = try {
+            store.loadKyberPreKey(kyberPreKeyId)
+        } catch (e: Exception) {
+            val key = KEMKeyPair.generate(KEMKeyType.KYBER_1024)
+            val signature = identityKeyPair.privateKey.calculateSignature(key.publicKey.serialize())
+            val record = KyberPreKeyRecord(kyberPreKeyId, System.currentTimeMillis(), key, signature)
+            store.storeKyberPreKey(kyberPreKeyId, record)
+            record
+        }
+
+        // 3. Generate a fresh One-Time PreKey for this bundle
+        // In a production app, we would generate a pool of these. For MVP, we'll generate one fresh one
+        // and upload it. Since it's a "one-time" key, it's okay to overwrite ID 1 locally after it's used.
+        val preKeyId = (System.currentTimeMillis() % 1000000).toInt() + 1
         val preKey = ECKeyPair.generate()
         store.storePreKey(preKeyId, PreKeyRecord(preKeyId, preKey))
-
-        val signedPreKeyId = 1
-        val signedPreKey = ECKeyPair.generate()
-        val signature = identityKeyPair.privateKey.calculateSignature(signedPreKey.publicKey.serialize())
-        store.storeSignedPreKey(signedPreKeyId, SignedPreKeyRecord(signedPreKeyId, System.currentTimeMillis(), signedPreKey, signature))
-
-        val kyberPreKeyId = 1
-        val kyberPreKey = KEMKeyPair.generate(KEMKeyType.KYBER_1024)
-        val kyberSignature = identityKeyPair.privateKey.calculateSignature(kyberPreKey.publicKey.serialize())
-        store.storeKyberPreKey(kyberPreKeyId, KyberPreKeyRecord(kyberPreKeyId, System.currentTimeMillis(), kyberPreKey, kyberSignature))
 
         ProtocolPreKeyBundle(
             registrationId = registrationId,
@@ -176,12 +202,12 @@ class SignalCryptoProvider @Inject constructor(
             preKeyId = preKeyId,
             preKeyPublicBase64 = ProtocolSerialization.toBase64(preKey.publicKey.serialize()),
             signedPreKeyId = signedPreKeyId,
-            signedPreKeyPublicBase64 = ProtocolSerialization.toBase64(signedPreKey.publicKey.serialize()),
-            signedPreKeySignatureBase64 = ProtocolSerialization.toBase64(signature),
+            signedPreKeyPublicBase64 = ProtocolSerialization.toBase64(signedPreKeyRecord.keyPair.publicKey.serialize()),
+            signedPreKeySignatureBase64 = ProtocolSerialization.toBase64(signedPreKeyRecord.signature),
             identityKeyBase64 = ProtocolSerialization.toBase64(identityKeyPair.publicKey.publicKey.serialize()),
             kyberPreKeyId = kyberPreKeyId,
-            kyberPreKeyPublicBase64 = ProtocolSerialization.toBase64(kyberPreKey.publicKey.serialize()),
-            kyberPreKeySignatureBase64 = ProtocolSerialization.toBase64(kyberSignature)
+            kyberPreKeyPublicBase64 = ProtocolSerialization.toBase64(kyberPreKeyRecord.keyPair.publicKey.serialize()),
+            kyberPreKeySignatureBase64 = ProtocolSerialization.toBase64(kyberPreKeyRecord.signature)
         )
     }
 

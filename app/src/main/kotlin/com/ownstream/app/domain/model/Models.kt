@@ -46,7 +46,21 @@ sealed class MessagePayload {
     data class Text(val content: String) : MessagePayload()
     @Serializable
     data class Encrypted(val encryptedPayload: EncryptedPayload) : MessagePayload()
+    @Serializable
+    data class Media(val metadata: MediaMetadata) : MessagePayload()
 }
+
+@Serializable
+data class MediaMetadata(
+    val fileId: String,
+    val fileName: String,
+    val mimeType: String,
+    val size: Long,
+    val aesKeyBase64: String,
+    val aesIvBase64: String,
+    val thumbnailBase64: String? = null
+)
+
 
 @Serializable
 enum class MessageStatus {

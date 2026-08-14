@@ -45,7 +45,7 @@ fun Application.module() {
             org.jetbrains.exposed.sql.Database.connect(dbUrl, driver = "org.h2.Driver", user = dbUser, password = dbPass)
             println("[E2E-Relay] Creating schema...")
             org.jetbrains.exposed.sql.transactions.transaction {
-                org.jetbrains.exposed.sql.SchemaUtils.create(Users, Devices, PreKeyBundles, OneTimePreKeys, QueuedMessages)
+                org.jetbrains.exposed.sql.SchemaUtils.create(Users, Devices, PreKeyBundles, OneTimePreKeys, QueuedMessages, MediaFiles)
             }
         } else {
             println("[E2E-Relay] Initializing DatabaseFactory...")
@@ -140,6 +140,26 @@ fun Application.module() {
                     call.respond(io.ktor.http.HttpStatusCode.NotFound, e.message ?: "Not found")
                 }
             }
+
+            post("/v1/media") {
+                val principal = call.principal<RelayPrincipal>()
+                val ownStreamId = principal?.ownStreamId ?: return@post call.respond(io.ktor.http.HttpStatusCode.Unauthorized)
+                
+                val request = call.receive<UploadMediaRequest>()
+                val response = relayService.uploadMedia(ownStreamId, request)
+                call.respond(response)
+            }
+
+            get("/v1/media/{id}") {
+                val fileId = call.parameters["id"] ?: return@get call.respond(io.ktor.http.HttpStatusCode.BadRequest)
+                try {
+                    val response = relayService.downloadMedia(fileId)
+                    call.respond(response)
+                } catch (e: Exception) {
+                    call.respond(io.ktor.http.HttpStatusCode.NotFound, e.message ?: "Not found")
+                }
+            }
+
 
             webSocket("/v1/ws") {
                 val principal = call.principal<RelayPrincipal>()

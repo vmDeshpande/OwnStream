@@ -31,6 +31,17 @@ interface MessageTransport {
     suspend fun fetchPreKeyBundle(identityId: String): ProtocolPreKeyBundle?
 
     /**
+     * Uploads encrypted media to the relay.
+     */
+    suspend fun uploadMedia(request: com.ownstream.protocol.UploadMediaRequest): String
+
+    /**
+     * Downloads encrypted media from the relay.
+     */
+    suspend fun downloadMedia(fileId: String): com.ownstream.protocol.DownloadMediaResponse
+
+
+    /**
      * Observes the current connection status of the transport.
      */
     fun observeConnectionStatus(): Flow<ConnectionStatus>

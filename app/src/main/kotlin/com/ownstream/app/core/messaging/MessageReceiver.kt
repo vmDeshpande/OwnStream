@@ -1,6 +1,7 @@
 package com.ownstream.app.core.messaging
 
 import android.util.Log
+import com.ownstream.app.core.crypto.CryptoProvider
 import com.ownstream.app.core.network.MessageTransport
 import com.ownstream.app.domain.model.*
 import com.ownstream.app.domain.repository.ChatRepository
@@ -11,6 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.serialization.json.Json
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -18,10 +20,12 @@ import javax.inject.Singleton
 class MessageReceiver @Inject constructor(
     private val transport: MessageTransport,
     private val chatRepository: ChatRepository,
-    private val identityRepository: IdentityRepository
+    private val identityRepository: IdentityRepository,
+    private val cryptoProvider: CryptoProvider
 ) {
     private val TAG = "MessageReceiver"
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val json = Json { ignoreUnknownKeys = true }
 
     fun startObserving() {
         Log.i(TAG, "Starting to observe incoming messages")
@@ -33,17 +37,50 @@ class MessageReceiver @Inject constructor(
     }
 
     private suspend fun handleEnvelope(envelope: MessageEnvelope) {
-        Log.d(TAG, "Received envelope: ${envelope.messageId} for conversation: ${envelope.conversationId}")
+        Log.d(TAG, "Processing incoming envelope: ${envelope.messageId}")
         
-        // 1. Ensure conversation exists to satisfy Foreign Key constraint
-        val existingConversation = chatRepository.getConversation(envelope.conversationId)
-        if (existingConversation == null) {
-            Log.i(TAG, "Creating missing conversation: ${envelope.conversationId}")
-            val localIdentity = identityRepository.getLocalIdentity() ?: return
+        try {
+            // 1. Decrypt ONCE at the edge
+            val decryptedJson = cryptoProvider.decryptPayload(envelope.encryptedPayload, envelope.senderId)
             
+            // 2. Parse the decrypted content into a domain payload
+            val payload = try {
+                json.decodeFromString<MessagePayload>(decryptedJson)
+            } catch (e: Exception) {
+                // Fallback for raw text packets if any
+                MessagePayload.Text(decryptedJson)
+            }
+
+            // 3. Ensure conversation exists
+            ensureConversationExists(envelope)
+
+            // 4. Save the already-decrypted message to the local database
+            val message = Message(
+                id = envelope.messageId,
+                conversationId = envelope.conversationId,
+                senderId = envelope.senderId,
+                payload = payload, // Saved as Text or Media, NOT Encrypted
+                timestamp = envelope.timestamp,
+                status = MessageStatus.RECEIVED
+            )
+
+            chatRepository.sendMessage(message)
+            Log.i(TAG, "Successfully processed and saved message: ${envelope.messageId}")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "CRITICAL: Failed to process incoming envelope", e)
+            // Save as error state so user knows something was missed
+            saveErrorPlaceholder(envelope)
+        }
+    }
+
+    private suspend fun ensureConversationExists(envelope: MessageEnvelope) {
+        val existing = chatRepository.getConversation(envelope.conversationId)
+        if (existing == null) {
+            val localIdentity = identityRepository.getLocalIdentity() ?: return
             val newConversation = Conversation(
                 id = envelope.conversationId,
-                title = envelope.senderId, // Default to sender ID
+                title = envelope.senderId,
                 storageConfig = StorageConfiguration(
                     conversationId = envelope.conversationId,
                     providerType = StorageProviderType.LOCAL
@@ -55,22 +92,17 @@ class MessageReceiver @Inject constructor(
             )
             chatRepository.createConversation(newConversation)
         }
+    }
 
-        // 2. Map envelope to domain Message
-        val message = Message(
+    private suspend fun saveErrorPlaceholder(envelope: MessageEnvelope) {
+        val errorMsg = Message(
             id = envelope.messageId,
             conversationId = envelope.conversationId,
             senderId = envelope.senderId,
-            payload = MessagePayload.Encrypted(envelope.encryptedPayload),
+            payload = MessagePayload.Text("[Decryption Failed]"),
             timestamp = envelope.timestamp,
-            status = MessageStatus.RECEIVED
+            status = MessageStatus.FAILED
         )
-
-        // 3. Save to repository (Room)
-        try {
-            chatRepository.sendMessage(message)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to save received message", e)
-        }
+        chatRepository.sendMessage(errorMsg)
     }
 }

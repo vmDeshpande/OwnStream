@@ -1,5 +1,6 @@
 package com.ownstream.app.feature.onboarding
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
@@ -22,6 +23,7 @@ fun IdentityScreen(
     var username by remember { mutableStateOf("") }
     val identity by viewModel.localIdentity.collectAsState()
     val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+    var isGenerating by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -38,7 +40,7 @@ fun IdentityScreen(
         ) {
             if (identity == null) {
                 Text(
-                    "Choose a username. Your identity is generated locally and never leaves your device.",
+                    "Choose a username. Your private keys are generated locally and never leave your device.",
                     style = MaterialTheme.typography.bodyLarge,
                     textAlign = TextAlign.Center
                 )
@@ -48,15 +50,25 @@ fun IdentityScreen(
                     onValueChange = { username = it },
                     label = { Text("Username") },
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    singleLine = true,
+                    enabled = !isGenerating
                 )
                 Spacer(modifier = Modifier.height(32.dp))
                 Button(
-                    onClick = { if (username.isNotBlank()) viewModel.createIdentity(username, {}) },
+                    onClick = { 
+                        if (username.isNotBlank()) {
+                            isGenerating = true
+                            viewModel.createIdentity(username, { isGenerating = false })
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = username.isNotBlank()
+                    enabled = username.isNotBlank() && !isGenerating
                 ) {
-                    Text("Generate Identity")
+                    if (isGenerating) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
+                    } else {
+                        Text("Generate Identity")
+                    }
                 }
             } else {
                 Icon(
@@ -67,24 +79,29 @@ fun IdentityScreen(
                 )
                 Spacer(modifier = Modifier.height(24.dp))
                 Text(
-                    "Identity Generated!",
+                    "Identity Ready!",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    "Your unique OwnStream ID:",
+                    "This is your unique OwnStream ID:",
                     style = MaterialTheme.typography.bodyMedium
                 )
-                SelectionContainer {
-                    Text(
-                        text = identity!!.id,
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(8.dp)
-                    )
+                Spacer(modifier = Modifier.height(8.dp))
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                ) {
+                    SelectionContainer {
+                        Text(
+                            text = identity!!.id,
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
                 }
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(32.dp))
                 Row(modifier = Modifier.fillMaxWidth()) {
                     OutlinedButton(
                         onClick = { 
@@ -102,13 +119,6 @@ fun IdentityScreen(
                         Text("Continue")
                     }
                 }
-                Spacer(modifier = Modifier.height(32.dp))
-                Text(
-                    "Share this ID with others so they can message you securely.",
-                    style = MaterialTheme.typography.bodySmall,
-                    textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.secondary
-                )
             }
         }
     }

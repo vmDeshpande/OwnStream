@@ -83,3 +83,30 @@ data class PublishPreKeyBundleRequest(
 data class FetchPreKeyBundleResponse(
     val bundle: ProtocolPreKeyBundle
 )
+
+/**
+ * Media upload request.
+ */
+@Serializable
+data class UploadMediaRequest(
+    val fileName: String,
+    val encryptedDataBase64: String
+)
+
+/**
+ * Media upload response.
+ */
+@Serializable
+data class UploadMediaResponse(
+    val fileId: String
+)
+
+/**
+ * Media download response.
+ */
+@Serializable
+data class DownloadMediaResponse(
+    val fileName: String,
+    val encryptedDataBase64: String
+)
+

@@ -46,3 +46,13 @@ object QueuedMessages : Table("queued_messages") {
     val expiresAt = long("expires_at")
     override val primaryKey = PrimaryKey(messageId)
 }
+
+object MediaFiles : Table("media_files") {
+    val id = varchar("id", 64)
+    val ownerId = varchar("owner_id", 32) references Users.ownStreamId
+    val fileName = text("file_name")
+    val encryptedDataBase64 = text("encrypted_data_base64")
+    val createdAt = long("created_at")
+    override val primaryKey = PrimaryKey(id)
+}
+

@@ -16,6 +16,8 @@ class NoOpMessageTransport @Inject constructor() : MessageTransport {
     override fun observeConnectionStatus(): Flow<ConnectionStatus> = flowOf(ConnectionStatus.DISCONNECTED)
     override suspend fun publishPreKeyBundle(identityId: String, bundle: ProtocolPreKeyBundle) {}
     override suspend fun fetchPreKeyBundle(identityId: String): ProtocolPreKeyBundle? = null
+    override suspend fun uploadMedia(request: com.ownstream.protocol.UploadMediaRequest): String = ""
+    override suspend fun downloadMedia(fileId: String): com.ownstream.protocol.DownloadMediaResponse = com.ownstream.protocol.DownloadMediaResponse("", "")
     override suspend fun connect() {}
     override suspend fun disconnect() {}
 }
