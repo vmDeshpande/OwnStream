@@ -180,7 +180,7 @@ fun ChatScreen(
             }
             
             if (messages.isEmpty() && connectionStatus == ConnectionStatus.CONNECTING) {
-                CircularProgressIndicator(modifier = Alignment.Center.let { Modifier.align(it) })
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             }
         }
     }
@@ -203,32 +203,28 @@ fun MessageBubble(uiMessage: UiMessage, isFromMe: Boolean, viewModel: ChatViewMo
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = alignment
     ) {
-        Surface(
-            color = containerColor,
-            shape = shape,
-            tonalElevation = 2.dp,
-            modifier = Modifier.widthIn(max = 300.dp)
-        ) {
-            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
-                if (uiMessage.type == "MEDIA") {
-                    MediaContent(uiMessage.originalMessage, viewModel)
-                    Spacer(modifier = Modifier.height(4.dp))
-                }
-                Text(
-                    text = uiMessage.content,
-                    color = contentColor,
-                    style = MaterialTheme.typography.bodyLarge,
-                    lineHeight = 22.sp
-                )
-                Row(
-                    modifier = Modifier.align(Alignment.End),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+        if (uiMessage.type == "MEDIA") {
+            MediaBubbleContent(uiMessage.originalMessage, viewModel, shape, containerColor, contentColor)
+        } else {
+            Surface(
+                color = containerColor,
+                shape = shape,
+                tonalElevation = 2.dp,
+                modifier = Modifier.widthIn(max = 300.dp)
+            ) {
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                    Text(
+                        text = uiMessage.content,
+                        color = contentColor,
+                        style = MaterialTheme.typography.bodyLarge,
+                        lineHeight = 22.sp
+                    )
                     Text(
                         text = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(message.timestamp),
                         style = MaterialTheme.typography.labelSmall,
                         color = contentColor.copy(alpha = 0.6f),
-                        fontSize = 10.sp
+                        fontSize = 10.sp,
+                        modifier = Modifier.align(Alignment.End)
                     )
                 }
             }
@@ -237,9 +233,14 @@ fun MessageBubble(uiMessage: UiMessage, isFromMe: Boolean, viewModel: ChatViewMo
 }
 
 @Composable
-fun MediaContent(message: Message, viewModel: ChatViewModel) {
-    val payload = message.payload
-    if (payload !is MessagePayload.Media) return
+fun MediaBubbleContent(
+    message: Message, 
+    viewModel: ChatViewModel, 
+    shape: RoundedCornerShape,
+    containerColor: Color,
+    contentColor: Color
+) {
+    val payload = message.payload as? MessagePayload.Media ?: return
     val metadata = payload.metadata
     
     var bitmap by remember { mutableStateOf<Bitmap?>(null) }
@@ -256,28 +257,54 @@ fun MediaContent(message: Message, viewModel: ChatViewModel) {
         }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(200.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant),
-        contentAlignment = Alignment.Center
+    Surface(
+        color = containerColor,
+        shape = shape,
+        tonalElevation = 2.dp,
+        modifier = Modifier.width(260.dp)
     ) {
-        if (bitmap != null) {
-            Image(
-                bitmap = bitmap!!.asImageBitmap(),
-                contentDescription = metadata.fileName,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-        } else if (isLoading) {
-            CircularProgressIndicator(modifier = Modifier.size(32.dp))
-        } else {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Default.AttachFile, null, modifier = Modifier.size(32.dp))
-                Text(metadata.fileName, style = MaterialTheme.typography.labelSmall)
-                Text("${metadata.size / 1024} KB", style = MaterialTheme.typography.labelSmall)
+        Box(modifier = Modifier.fillMaxWidth()) {
+            // Image Content
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(300.dp)
+                    .clip(shape)
+                    .background(Color.Black.copy(alpha = 0.05f)),
+                contentAlignment = Alignment.Center
+            ) {
+                if (bitmap != null) {
+                    Image(
+                        bitmap = bitmap!!.asImageBitmap(),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else if (isLoading) {
+                    CircularProgressIndicator(modifier = Modifier.size(32.dp), strokeWidth = 2.dp)
+                } else {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.AttachFile, null, modifier = Modifier.size(32.dp), tint = contentColor)
+                        Text(metadata.fileName, style = MaterialTheme.typography.labelSmall, color = contentColor, modifier = Modifier.padding(8.dp))
+                    }
+                }
+            }
+
+            // Overlay Timestamp (WhatsApp style)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(8.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color.Black.copy(alpha = 0.3f))
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            ) {
+                Text(
+                    text = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(message.timestamp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White,
+                    fontSize = 10.sp
+                )
             }
         }
     }
